@@ -43,5 +43,15 @@ export async function scanFoodImage(file) {
     return data
 }
 
+export async function listNotifications() {
+	const { data } = await api.get('/api/notifications/')
+	return data
+}
+
+export async function markNotificationRead(id, is_read=true) {
+	const { data } = await api.patch(`/api/notifications/${id}/`, { is_read })
+	return data
+}
+
 
 

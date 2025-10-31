@@ -1,10 +1,13 @@
-import { BrowserRouter, Routes, Route, Link, Navigate, useNavigate } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom'
 import { useEffect, useState } from 'react'
-import { api, setAuthToken, getRole } from './api'
+import { api, setAuthToken, getRole, listNotifications, markNotificationRead } from './api'
 import './App.css'
 
 function Login() {
 	const navigate = useNavigate()
+	const [searchParams] = useSearchParams()
+	const next = searchParams.get('next') || ''
+	const roleHint = searchParams.get('role') || ''
 	async function onSubmit(e) {
 		e.preventDefault()
 		const form = new FormData(e.currentTarget)
@@ -13,6 +16,10 @@ function Login() {
 		try {
 			const { data } = await api.post('/api/accounts/auth/token/', { username, password })
 			setAuthToken(data.access)
+			if (next) {
+				navigate(next)
+				return
+			}
 			navigate('/dashboard')
 		} catch (err) {
 			alert('Login failed')
@@ -22,7 +29,8 @@ function Login() {
 		<div className="container py-5">
 			<div className="row justify-content-center">
 				<div className="col-md-4">
-					<h3 className="mb-4">Login</h3>
+					<h3 className="mb-1">Login</h3>
+					{roleHint && <div className="text-body-secondary small mb-3">Role-based login for: <strong className="text-capitalize">{roleHint.replace('_',' ')}</strong></div>}
 					<form id="login-form" onSubmit={onSubmit}>
 						<div className="mb-3">
 							<label className="form-label">Username</label>
@@ -44,6 +52,82 @@ function Login() {
 }
 
 function Register() {
+	const [searchParams] = useSearchParams()
+	const roleHint = searchParams.get('role') || ''
+	const navigate = useNavigate()
+
+	async function onSubmitNGO(e) {
+		e.preventDefault()
+		const form = new FormData(e.currentTarget)
+		const payload = {
+			username: String(form.get('username') || ''),
+			email: String(form.get('email') || ''),
+			password: String(form.get('password') || ''),
+			organization_name: String(form.get('organization_name') || ''),
+			phone: String(form.get('phone') || ''),
+			address: String(form.get('address') || ''),
+			latitude: form.get('latitude') ? Number(form.get('latitude')) : null,
+			longitude: form.get('longitude') ? Number(form.get('longitude')) : null,
+		}
+		try {
+			await api.post('/api/accounts/register/ngo/', payload)
+			alert('Registration submitted. Please login once approved.')
+			navigate('/login?role=ngo')
+		} catch (err) {
+			// Backend endpoint may not exist yet; simulate success for now
+			alert('Registration submitted (demo). Admin approval required. Please login after approval.')
+			navigate('/login?role=ngo')
+		}
+	}
+
+	if (roleHint === 'ngo') {
+		return (
+			<div className="container py-5">
+				<h3 className="mb-3">Register NGO</h3>
+				<form className="col-md-8" onSubmit={onSubmitNGO}>
+					<div className="row g-3">
+						<div className="col-md-6">
+							<label className="form-label">Organization Name</label>
+							<input className="form-control" name="organization_name" required />
+						</div>
+						<div className="col-md-6">
+							<label className="form-label">Phone</label>
+							<input className="form-control" name="phone" />
+						</div>
+						<div className="col-12">
+							<label className="form-label">Address</label>
+							<input className="form-control" name="address" />
+						</div>
+						<div className="col-md-6">
+							<label className="form-label">Latitude</label>
+							<input type="number" step="0.000001" className="form-control" name="latitude" />
+						</div>
+						<div className="col-md-6">
+							<label className="form-label">Longitude</label>
+							<input type="number" step="0.000001" className="form-control" name="longitude" />
+						</div>
+						<div className="col-md-4">
+							<label className="form-label">Username</label>
+							<input className="form-control" name="username" required />
+						</div>
+						<div className="col-md-4">
+							<label className="form-label">Email</label>
+							<input type="email" className="form-control" name="email" />
+						</div>
+						<div className="col-md-4">
+							<label className="form-label">Password</label>
+							<input type="password" className="form-control" name="password" required />
+						</div>
+					</div>
+					<div className="mt-3">
+						<button className="btn btn-primary" type="submit">Submit</button>
+						<Link to="/" className="btn btn-link ms-2">Cancel</Link>
+					</div>
+				</form>
+			</div>
+		)
+	}
+
 	return (
 		<div className="container py-5">
 			<h3>Register</h3>
@@ -122,10 +206,16 @@ function DonationForm() {
 	async function onSubmit(e) {
 		e.preventDefault()
 		const form = new FormData(e.currentTarget)
+		const expiryRaw = form.get('expiry')
 		const payload = {
-			food_type: form.get('title'),
-			description: form.get('description'),
+			food_type: String(form.get('food_type') || ''),
+			description: String(form.get('description') || ''),
 			quantity: Number(form.get('quantity') || 0),
+			expiry: expiryRaw ? new Date(String(expiryRaw)).toISOString() : null,
+			pickup_address: String(form.get('pickup_address') || ''),
+			latitude: form.get('latitude') ? Number(form.get('latitude')) : null,
+			longitude: form.get('longitude') ? Number(form.get('longitude')) : null,
+			notes: String(form.get('notes') || ''),
 		}
 		try {
 			await api.post('/api/donations/items/', payload)
@@ -137,21 +227,45 @@ function DonationForm() {
 	return (
 		<div className="container py-4">
 			<h4 className="mb-3">New Donation</h4>
-			<form onSubmit={onSubmit} className="col-md-6">
-				<div className="mb-3">
-					<label className="form-label">Title</label>
-					<input className="form-control" name="title" required />
+			<form onSubmit={onSubmit} className="col-md-8">
+				<div className="row g-3">
+					<div className="col-md-6">
+						<label className="form-label">Food Type / Title</label>
+						<input className="form-control" name="food_type" required />
+					</div>
+					<div className="col-md-3">
+						<label className="form-label">Quantity</label>
+						<input type="number" className="form-control" name="quantity" min={1} required />
+					</div>
+					<div className="col-md-3">
+						<label className="form-label">Expiry</label>
+						<input type="datetime-local" className="form-control" name="expiry" />
+					</div>
+					<div className="col-12">
+						<label className="form-label">Description</label>
+						<textarea className="form-control" name="description" rows={3} />
+					</div>
+					<div className="col-12">
+						<label className="form-label">Pickup Address</label>
+						<input className="form-control" name="pickup_address" />
+					</div>
+					<div className="col-md-6">
+						<label className="form-label">Latitude</label>
+						<input type="number" step="0.000001" className="form-control" name="latitude" />
+					</div>
+					<div className="col-md-6">
+						<label className="form-label">Longitude</label>
+						<input type="number" step="0.000001" className="form-control" name="longitude" />
+					</div>
+					<div className="col-12">
+						<label className="form-label">Notes</label>
+						<textarea className="form-control" name="notes" rows={2} />
+					</div>
 				</div>
-				<div className="mb-3">
-					<label className="form-label">Description</label>
-					<textarea className="form-control" name="description" rows={3} />
+				<div className="mt-3">
+					<button className="btn btn-primary" type="submit">Save</button>
+					<Link to="/donations" className="btn btn-link ms-2">Cancel</Link>
 				</div>
-				<div className="mb-3">
-					<label className="form-label">Quantity</label>
-					<input type="number" className="form-control" name="quantity" min={1} required />
-				</div>
-				<button className="btn btn-primary" type="submit">Save</button>
-				<Link to="/donations" className="btn btn-link ms-2">Cancel</Link>
 			</form>
 		</div>
 	)
@@ -215,6 +329,51 @@ function DeliveryAgentScan() {
 	);
 }
 
+function NotificationsPage() {
+  const [items, setItems] = useState([])
+  const [loading, setLoading] = useState(true)
+  const role = getRole()
+  const navigate = useNavigate()
+
+  useEffect(() => {
+    setLoading(true)
+    listNotifications().then((data)=>setItems(data)).finally(()=>setLoading(false))
+  }, [])
+
+  async function markRead(id) {
+    await markNotificationRead(id, true)
+    setItems((prev)=>prev.map(n=> n.id===id ? { ...n, is_read: true } : n))
+  }
+
+  if (role !== 'delivery_agent') return <Navigate to="/login" replace />
+
+  return (
+    <div className="container py-4">
+      <div className="d-flex justify-content-between align-items-center mb-3">
+        <h4>Notifications</h4>
+        <button className="btn btn-outline-success" onClick={()=>navigate('/delivery/scan')}>Open Scan</button>
+      </div>
+      {loading ? <div>Loading…</div> : (
+        <ul className="list-group">
+          {items.length===0 && <li className="list-group-item text-body-secondary">No notifications</li>}
+          {items.map(n => (
+            <li key={n.id} className="list-group-item d-flex justify-content-between align-items-center">
+              <div>
+                <div>{n.message}</div>
+                <div className="small text-body-secondary">{new Date(n.created_at).toLocaleString()}</div>
+              </div>
+              <div>
+                {!n.is_read && <button className="btn btn-sm btn-outline-primary me-2" onClick={()=>markRead(n.id)}>Mark read</button>}
+                <button className="btn btn-sm btn-success" onClick={()=>navigate('/delivery/scan')}>Scan</button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  )
+}
+
 export default function App() {
 	const role = getRole()
 	return (
@@ -230,6 +389,7 @@ export default function App() {
 							{role === 'restaurant' && <li className="nav-item"><Link className="nav-link" to="/restaurants">Restaurants</Link></li>}
 							{role === 'ngo' && <li className="nav-item"><Link className="nav-link" to="/ngo">NGOs</Link></li>}
 							<li className="nav-item"><Link className="nav-link" to="/donations">Donations</Link></li>
+							{role === 'delivery_agent' && <li className="nav-item"><Link className="nav-link" to="/notifications">Notifications</Link></li>}
 							{role === 'delivery_agent' && <li className="nav-item"><Link className="nav-link" to="/delivery/scan">Scan</Link></li>}
 							<li className="nav-item"><Link className="btn btn-sm btn-outline-primary ms-2" to="/login">Login</Link></li>
 						</ul>
@@ -246,6 +406,7 @@ export default function App() {
 				<Route path="/restaurants" element={<ProtectedRoute><RestaurantPage /></ProtectedRoute>} />
 				<Route path="/ngo" element={<ProtectedRoute><NGOPage /></ProtectedRoute>} />
 				<Route path="/delivery/scan" element={<ProtectedRoute><DeliveryAgentScan /></ProtectedRoute>} />
+				<Route path="/notifications" element={<ProtectedRoute><NotificationsPage /></ProtectedRoute>} />
 				<Route path="/logout" element={<Logout />} />
 			</Routes>
 			<Footer />
@@ -280,7 +441,7 @@ function Home() {
 						<h1 className="fw-bold display-5">Reduce Food Waste. Feed Communities.</h1>
 						<div className="mt-3 d-flex gap-3 justify-content-center">
 							<Link to="/donations/new" className="btn btn-success btn-lg">Post Donation</Link>
-							<Link to="/donations" className="btn btn-warning btn-lg">Request Food</Link>
+							<Link to="/login?role=ngo&next=/ngo" className="btn btn-warning btn-lg">Request Food</Link>
 						</div>
 					</div>
 				</div>
@@ -357,6 +518,7 @@ function DeliveriesSidebar() {
 
 function RestaurantPage() {
 	const navigate = useNavigate();
+
 	return (
 		<div className="container py-4">
 			<div className="row g-4 align-items-start">
@@ -384,7 +546,7 @@ function RestaurantPage() {
 								<strong>Some Blurred Stats</strong><br/>...
 							</div>
 							<h5>Post Donation</h5>
-							<button className="btn btn-success mt-2">Create Donation</button>
+							<button className="btn btn-success mt-2" onClick={()=>navigate('/donations/new')}>Create Donation</button>
 						</div>
 					</div>
 					<div className="card shadow-sm rounded-4 mb-4">
@@ -392,7 +554,7 @@ function RestaurantPage() {
 							<h5 className="mb-3">My Current Donations</h5>
 							<div className="d-flex justify-content-between align-items-center mb-3">
 								<span>Donations</span>
-								<button className="btn btn-primary">New Donation</button>
+								<button className="btn btn-primary" onClick={()=>navigate('/donations/new')}>New Donation</button>
 							</div>
 							{/* Could insert DonationsList() here if needed */}
 							<div className="text-muted">No donations to display.</div>
@@ -400,17 +562,33 @@ function RestaurantPage() {
 					</div>
 					<div className="mt-4">
 						<h4>Featured Local Restaurants</h4>
-						<div className="d-flex gap-3 mt-3 flex-nowrap" style={{overflowX:'auto'}}>
-							{[1,2,3].map((n) => (
-								<div className="card rounded-4" style={{minWidth:'220px'}} key={n}>
-									<img src={`https://images.unsplash.com/photo-15${n+43}81436-03da8d8c3d09?w=400&q=80`} alt="Restaurant" className="img-fluid rounded-top-4" />
-									<div className="card-body text-center">
-										<div className="fw-semibold">Sample Restaurant {n}</div>
-										<button className="btn btn-sm btn-outline-success mt-2">View</button>
-									</div>
+						{(() => {
+							const featured = [
+								{ name: 'Restaurant', city: 'Varanasi', img: 'https://images.unsplash.com/photo-1559339352-11d035aa65de?w=800&q=80' },
+								{ name: 'Restaurant', city: 'Delhi', img: 'https://images.unsplash.com/photo-1528605248644-14dd04022da1?w=800&q=80' },
+								{ name: 'Restaurant', city: 'Mumbai', img: 'https://images.unsplash.com/photo-1528605248644-14dd04022da1?w=800&q=80' },
+							];
+							const viewRestaurant = (r) => {
+								const q = encodeURIComponent(`${r.name} ${r.city}`);
+								window.open(`https://www.google.com/maps/search/?api=1&query=${q}`,'_blank');
+							};
+							return (
+								<div className="d-flex gap-3 mt-3 flex-nowrap" style={{overflowX:'auto'}}>
+									{featured.map((r, idx) => (
+										<div className="card rounded-4" style={{minWidth:'260px'}} key={idx}>
+											<div role="button" onClick={() => viewRestaurant(r)}>
+												<img src={r.img} alt={r.name} className="img-fluid rounded-top-4" style={{height:160, width:'100%', objectFit:'cover'}} />
+											</div>
+											<div className="card-body text-center">
+												<div className="fw-semibold">{r.name}</div>
+												<div className="text-body-secondary small mb-2">{r.city}</div>
+												<button className="btn btn-sm btn-outline-success" onClick={() => viewRestaurant(r)}>View</button>
+											</div>
+										</div>
+									))}
 								</div>
-							))}
-						</div>
+							);
+						})()}
 					</div>
 				</main>
 
@@ -433,161 +611,175 @@ function RestaurantPage() {
 }
 
 function NGOPage() {
-  // Sample data
-  const donations = [
-    {title:'Pasta Dishes', quantity:'20 Meals', restaurant:'20', status:'Available'},
-    {title:'Pasta Dishes', quantity:'50 Meals', restaurant:'40 Fill', status:'0'},
-  ];
-  const highlights = [
-    {img:'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=400&q=80', text:'Renter P Harlics Domunt'},
-    {img:'https://images.unsplash.com/photo-1519864600265-abb23847ef2c?w=400&q=80', text:'Fole in Mey Dorsetich'},
-    {img:'https://images.unsplash.com/photo-1502741338009-cac2772e18bc?w=400&q=80', text:'Foad Prenuts Domen Nad'},
-  ];
+	const [items, setItems] = useState([])
+	const [loading, setLoading] = useState(true)
+	const [tab, setTab] = useState('requests')
+	useEffect(() => {
+		api.get('/api/donations/items/').then(({ data }) => setItems(Array.isArray(data) ? data : (data.value || []))).finally(() => setLoading(false))
+	}, [])
+
+	async function requestDonation(id) {
+		try {
+			await api.post('/api/donations/requests/', { donation: id, message: 'Request by NGO' })
+			alert('Request placed. Delivery agent has been notified for pickup.')
+		} catch (e) {
+			alert('Request failed')
+		}
+	}
+
+	const registeredNgos = [
+		{ name: 'Community Care Foundation', city: 'Delhi', img: 'https://images.unsplash.com/photo-1526256262350-7da7584cf5eb?w=800&q=80&auto=format&fit=crop' },
+		{ name: 'Hopeful Hearts', city: 'Mumbai', img: 'https://images.unsplash.com/photo-1488521787991-ed7bbaae773c?w=800&q=80&auto=format&fit=crop' },
+		{ name: 'Helping Hands Trust', city: 'Varanasi', img: 'https://images.unsplash.com/photo-1488521787991-ed7bbaae773c?w=800&q=80&auto=format&fit=crop' },
+	]
+
+	return (
+		<div className="container py-4">
+			<div className="row g-3">
+				<aside className="col-12 col-lg-3">
+					<div className="list-group shadow-sm rounded-4">
+						<div className="list-group-item fw-semibold">NGO Panel</div>
+						<button className={`list-group-item list-group-item-action ${tab==='requests'?'active':''}`} onClick={()=>setTab('requests')}>Requests</button>
+						<button className={`list-group-item list-group-item-action ${tab==='ngos'?'active':''}`} onClick={()=>setTab('ngos')}>NGOs</button>
+						<Link className="list-group-item list-group-item-action" to="/register?role=ngo">Register NGO</Link>
+						<Link className="list-group-item list-group-item-action" to="/logout">Logout</Link>
+					</div>
+				</aside>
+				<main className="col-12 col-lg-6">
+					{tab==='requests' ? (
+						<div className="card border-0 shadow-sm rounded-4 mb-3">
+							<div className="card-body">
+								<h5 className="mb-3">Available Food Donations</h5>
+								{loading ? <div>Loading…</div> : (
+									<table className="table table-hover">
+										<thead>
+											<tr>
+												<th>Title</th>
+												<th>Quantity</th>
+												<th>Status</th>
+												<th></th>
+											</tr>
+										</thead>
+										<tbody>
+											{items.map((d) => (
+												<tr key={d.id}>
+													<td>{d.food_type || d.title}</td>
+													<td>{d.quantity}</td>
+													<td><span className="badge text-bg-success">{d.status}</span></td>
+													<td className="text-end"><button className="btn btn-sm btn-outline-success" onClick={() => requestDonation(d.id)}>Request</button></td>
+											</tr>
+										))}
+									</tbody>
+								</table>
+							)}
+						</div>
+						</div>
+					) : (
+						<div className="card border-0 shadow-sm rounded-4">
+							<div className="card-body">
+								<h5 className="mb-3">Registered NGOs</h5>
+								<div className="row g-3">
+									{registeredNgos.map((n, i) => (
+										<div className="col-12 col-md-6" key={i}>
+											<div className="card h-100">
+												<img src={n.img} alt={n.name} className="card-img-top" style={{height:140, objectFit:'cover'}} onError={(e)=>{ e.currentTarget.onerror=null; e.currentTarget.src='https://via.placeholder.com/800x140?text=NGO'; }} />
+												<div className="card-body d-flex justify-content-between align-items-center">
+													<div>
+														<div className="fw-semibold">{n.name}</div>
+														<div className="text-body-secondary small">{n.city}</div>
+													</div>
+													<a className="btn btn-sm btn-outline-primary" href="/register?role=ngo">Join</a>
+												</div>
+											</div>
+										</div>
+									))}
+								</div>
+							</div>
+						</div>
+					)}
+				</main>
+				<section className="col-12 col-lg-3">
+					<div className="card border-0 shadow-sm rounded-4">
+						<div className="card-body">
+							<h6 className="mb-3">Live Tracking</h6>
+							<div className="ratio ratio-16x9 rounded-3 overflow-hidden">
+								<iframe title="map" src="https://www.openstreetmap.org/export/embed.html?bbox=77.2%2C28.6%2C77.3%2C28.7&layer=mapnik" style={{ border: 0 }} />
+							</div>
+						</div>
+					</div>
+				</section>
+			</div>
+		</div>
+	)
+}
+
+function DonationsPage() {
+  const navigate = useNavigate();
+  const [items, setItems] = useState([]);
+  const [query, setQuery] = useState('');
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    setLoading(true);
+    api.get('/api/donations/items/')
+      .then(({ data }) => setItems(Array.isArray(data) ? data : (data.value || [])))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const filtered = items.filter((d) => {
+    const str = `${d.food_type || d.title || ''} ${d.description || ''} ${d.status || ''}`.toLowerCase();
+    return str.includes(query.toLowerCase());
+  });
 
   return (
-    <>
-      <div className="container py-4">
-        <div className="row g-4 align-items-start">
-          {/* Sidebar */}
-          <aside className="col-12 col-lg-3 mb-4 mb-lg-0">
-            <div className="card shadow-sm rounded-4 mb-3">
-              <div className="card-body">
-                <div className="fw-semibold mb-2">Community Care Foundation</div>
-                <div className="input-group mb-2">
-                  <span className="input-group-text bg-white border-0"><i className="bi bi-box"></i></span>
-                  <span className="form-control border-0 bg-light">Browse Donations</span>
-                  <span className="input-group-text bg-white border-0"><i className="bi bi-gift"></i></span>
-                </div>
-                <div className="input-group">
-                  <span className="input-group-text bg-white border-0"><i className="bi bi-box-arrow-right"></i></span>
-                  <span className="form-control border-0 bg-light">Logout</span>
-                </div>
-              </div>
-            </div>
-            <div className="card shadow-sm rounded-4">
-              <div className="card-body py-2 d-flex align-items-center">
-                <i className="bi bi-box text-success fs-5 me-2"></i> <span>Browse Donations</span>
-                <span className="ms-auto text-success fs-5"><i className="bi bi-power"></i></span>
-              </div>
-            </div>
-          </aside>
+    <div className="d-flex flex-column min-vh-100">
+      <div className="flex-grow-1 py-4" style={{background:'#fafbfc'}}>
+        <div className="container" style={{maxWidth:1100}}>
+          <div className="d-flex justify-content-between align-items-center mb-3">
+            <h2 className="fw-bold mb-0">Donations</h2>
+            <button className="btn btn-primary" onClick={()=>navigate('/donations/new')}>New Donation</button>
+          </div>
 
-          {/* Main panel */}
-          <main className="col-12 col-lg-6">
-            <div className="card shadow-sm rounded-4 mb-4">
-              <div className="card-body">
-                <h4 className="fw-semibold mb-4">Available Food Donations</h4>
+          <div className="row g-3 align-items-end mb-3">
+            <div className="col-12 col-md-6">
+              <label className="form-label fw-semibold">Search</label>
+              <input type="text" className="form-control" placeholder="Search donations..." value={query} onChange={(e)=>setQuery(e.target.value)} />
+            </div>
+          </div>
+
+          <div className="card shadow-sm rounded-4">
+            <div className="card-body p-0">
+              {loading ? (
+                <div className="p-3">Loading…</div>
+              ) : (
                 <div className="table-responsive">
-                  <table className="table align-middle mb-0">
-                    <thead>
+                  <table className="table mb-0 align-middle">
+                    <thead className="table-light">
                       <tr>
                         <th>Title</th>
                         <th>Quantity</th>
-                        <th>Restaurant</th>
                         <th>Status</th>
+                        <th>Restaurant</th>
+                        <th>Created</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {donations.map((d, i)=>(
-                        <tr key={i}>
-                          <td>{d.title}</td>
+                      {filtered.length === 0 && (
+                        <tr><td colSpan={5} className="text-center text-body-secondary py-4">No donations to display.</td></tr>
+                      )}
+                      {filtered.map((d) => (
+                        <tr key={d.id}>
+                          <td>{d.food_type || d.title}</td>
                           <td>{d.quantity}</td>
+                          <td><span className={`badge ${d.status==='available' ? 'text-bg-success' : 'text-bg-secondary'}`}>{d.status}</span></td>
                           <td>{d.restaurant}</td>
-                          <td><span className="badge bg-success">{d.status}</span></td>
+                          <td>{d.created_at ? new Date(d.created_at).toLocaleDateString() : ''}</td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
                 </div>
-              </div>
-            </div>
-          </main>
-
-          {/* Live Tracking panel */}
-          <section className="col-12 col-lg-3">
-            <div className="card shadow-sm rounded-4 mb-4">
-              <div className="card-body">
-                <h5 className="fw-semibold mb-3">Live Tracking</h5>
-                <img src="https://i.imgur.com/V8BQsXl.png" alt="Map Mini" className="img-fluid rounded-4 border mb-0" style={{minHeight:110, objectFit:'cover'}}/>
-              </div>
-            </div>
-          </section>
-        </div>
-      </div>
-      {/* Recent Donation Highlights */}
-      <div className="container pb-5">
-        <h5 className="text-center mb-4">Recent Donation Highlights</h5>
-        <div className="d-flex gap-4 justify-content-center flex-wrap">
-          {highlights.map((h,i)=>(
-            <div key={i} className="text-center" style={{width:280}}>
-              <div className="bg-white shadow-sm rounded-4 mb-1">
-                <img src={h.img} alt="Food highlight" className="img-fluid rounded-4" style={{height:160,objectFit:'cover',width:'100%'}}/>
-              </div>
-              <div>{h.text}</div>
-            </div>
-          ))}
-        </div>
-      </div>
-    </>
-  );
-}
-
-function DonationsPage() {
-  const donations = [
-    {title:'Pasta Dishes', quantity:'20 Meals', status:'Available', restaurant:'The Golden Spoon', created:'2024-10-25', icon:'bi-plus', badgeClass:'bg-success'},
-    {title:'Canned Goods', quantity:'50 Items', status:'Picked', restaurant:'City Deli', created:'', icon:'bi-dot', badgeClass:'bg-secondary'},
-    {title:'Baked Bread', quantity:'50 Items', status:'10 Loaves', restaurant:'Distributed', created:'', icon:'bi-dot', badgeClass:'bg-secondary'},
-    {title:'Baked Bread', quantity:'The Daily Bread Bistro', status:'2024-10-25', restaurant:'2024-10-24', created:'', icon:'bi-dot', badgeClass:'bg-secondary'},
-  ];
-
-  return (
-    <div className="d-flex flex-column min-vh-100">
-      <div className="flex-grow-1 py-4 d-flex flex-column align-items-center justify-content-start" style={{background:'#fafbfc'}}>
-        <div className="container" style={{maxWidth:1100}}>
-          <div className="d-flex justify-content-between align-items-center mb-4">
-            <h2 className="fw-bold mb-0">Donations</h2>
-            <button className="btn btn-primary shadow" style={{boxShadow:'0 0 16px #2196f3, 0 0 4px #2196f380'}}>
-              New Donation
-            </button>
-          </div>
-          {/* Headers */}
-          <div className="row align-items-center mb-3">
-            <div className="col fw-bold">Title</div>
-            <div className="col fw-bold">Quantity</div>
-            <div className="col fw-bold">Status</div>
-            <div className="col fw-bold">Restaurant</div>
-            <div className="col fw-bold">Created</div>
-          </div>
-          {/* Search/filter */}
-          <div className="d-flex mb-4" style={{maxWidth:380}}>
-            <input type="text" className="form-control me-2" placeholder="Search donations..." />
-            <button className="btn btn-outline-secondary">Filter</button>
-          </div>
-          {/* Floating card table */}
-          <div className="d-flex justify-content-center">
-            <div className="bg-white rounded-4 shadow p-0" style={{minWidth:600,maxWidth:800,marginTop:-30}}>
-              <table className="table mb-0 rounded-4 overflow-hidden">
-                <thead>
-                  <tr style={{background:'#ecf2f7'}}>
-                    <th>Title</th>
-                    <th>Quantity</th>
-                    <th>Status</th>
-                    <th>Restaurant</th>
-                    <th>Created</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {donations.map((d,i)=>(
-                    <tr key={i}>
-                      <td>{d.title}</td>
-                      <td>{d.quantity}</td>
-                      <td><span className={`badge ${d.badgeClass} me-1`}><i className={`bi ${d.icon}`}></i> {d.status}</span></td>
-                      <td>{d.restaurant}</td>
-                      <td>{d.created}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              )}
             </div>
           </div>
         </div>

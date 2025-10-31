@@ -8,6 +8,8 @@ from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.response import Response
 from rest_framework import status
 from deliveries.classifier import classify_image
+from notifications.models import Notification
+from accounts.models import User
 
 
 class IsRestaurantCreateOnly(permissions.BasePermission):
@@ -58,7 +60,17 @@ class RequestViewSet(viewsets.ModelViewSet):
 	permission_classes = [IsNGOCreateOnly]
 
 	def perform_create(self, serializer):
-		serializer.save(ngo=self.request.user)
+		req = serializer.save(ngo=self.request.user)
+		# Create notifications to delivery agents and restaurant
+		try:
+			don = req.donation
+			msg = f"Pickup requested for donation #{don.id} ({don.food_type}) at {don.pickup_address or 'pickup location'}."
+			for agent in User.objects.filter(role='delivery_agent'):
+				Notification.objects.create(user=agent, message=msg)
+			# notify restaurant owner
+			Notification.objects.create(user=don.restaurant, message=f"Your donation #{don.id} has been requested by an NGO.")
+		except Exception:
+			pass
 
 	def get_permissions(self):
 		return [IsNGOCreateOnly()]
