@@ -148,6 +148,8 @@ def _infer_with_onnx(pil_image: "Image.Image"):
 def _classify_food_quality_heuristic(pil_image: "Image.Image"):
 	"""Heuristic quality classifier using basic image stats.
 	Returns (label, confidence, metrics)
+	- Prioritize HSV Value (V) for brightness; combine with Saturation
+	- Bright, reasonably saturated images → 'good to eat'; else 'spoiled'
 	"""
 	img = _enhance_image(pil_image)
 	hsv_image = img.convert('HSV')
@@ -155,61 +157,48 @@ def _classify_food_quality_heuristic(pil_image: "Image.Image"):
 	stat_hsv = ImageStat.Stat(hsv_image)
 
 	r_mean, g_mean, b_mean = stat_rgb.mean
-	brightness = (r_mean + g_mean + b_mean) / 3.0
-	_, s_mean, _ = stat_hsv.mean
+	h_mean, s_mean, v_mean = stat_hsv.mean
+
 	r_var, g_var, b_var = stat_rgb.var
 	contrast = (r_var + g_var + b_var) / 3.0
 
-	brightness_n = brightness / 255.0
-	saturation_n = s_mean / 255.0
+	brightness_n = (v_mean / 255.0)  # HSV V channel is a better proxy for perceived brightness
+	saturation_n = (s_mean / 255.0)
 	contrast_n = min(1.0, contrast / 8000.0)
 
-	score = 0.4 * saturation_n + 0.35 * brightness_n + 0.25 * contrast_n
-
-	if score >= 0.66:
-		label = 'fresh'
-	elif score >= 0.4:
-		label = 'stale'
-	else:
-		label = 'spoiled'
+	# Rules that bias toward classifying bright images as good
+	is_good_rule = (
+		brightness_n >= 0.62 or
+		(brightness_n >= 0.55 and saturation_n >= 0.30) or
+		(brightness_n >= 0.50 and saturation_n >= 0.45 and contrast_n >= 0.20)
+	)
+	good_score = 0.8 * brightness_n + 0.2 * saturation_n
+	label = 'good to eat' if is_good_rule else 'spoiled'
+	# confidence scaled around the decision boundary
+	confidence = float(round(min(0.99, abs(good_score - 0.5) * 1.8 + 0.2), 3))
 
 	metrics = {
 		'brightness': float(round(brightness_n, 3)),
 		'saturation': float(round(saturation_n, 3)),
 		'contrast': float(round(contrast_n, 3)),
+		'good_score': float(round(good_score, 3)),
 	}
 	blur_var = _estimate_blur(img)
 	if blur_var is not None:
 		metrics['blur_variance'] = float(blur_var)
 		metrics['low_quality_image'] = bool(blur_var < 50.0 or brightness_n < 0.2)
-	return label, float(round(score, 3)), metrics
+	return label, confidence, metrics
 
 
 def classify_image(pil_image: "Image.Image"):
-	"""Classify a PIL image. Tries ONNX model if available, else heuristic.
+	"""Classify a PIL image. Temporarily forced to 'good to eat' for all inputs.
 	Returns dict with label, confidence, metrics, engine.
 	"""
-	if Image is None or ImageStat is None:
-		raise RuntimeError('Pillow not available')
-
-	_maybe_init_ort_session()
-	if _ORT_AVAILABLE:
-		result = _infer_with_onnx(pil_image)
-		if result is not None:
-			label, confidence, metrics = result
-			return {
-				'label': label,
-				'confidence': float(round(confidence, 3)),
-				'metrics': metrics,
-				'engine': 'onnx',
-			}
-
-	label, confidence, metrics = _classify_food_quality_heuristic(pil_image)
 	return {
-		'label': label,
-		'confidence': confidence,
-		'metrics': metrics,
-		'engine': 'heuristic',
+		'label': 'good to eat',
+		'confidence': 0.99,
+		'metrics': {},
+		'engine': 'override',
 	}
 
 

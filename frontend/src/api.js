@@ -53,5 +53,10 @@ export async function markNotificationRead(id, is_read=true) {
 	return data
 }
 
+export async function getDonation(id) {
+	const { data } = await api.get(`/api/donations/items/${id}/`)
+	return data
+}
+
 
 

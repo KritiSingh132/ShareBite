@@ -46,7 +46,14 @@ class FoodDonationViewSet(viewsets.ModelViewSet):
 	permission_classes = [IsRestaurantCreateOnly]
 
 	def perform_create(self, serializer):
-		serializer.save(restaurant=self.request.user)
+		donation = serializer.save(restaurant=self.request.user)
+		# Notify NGOs about a new donation
+		try:
+			msg = f"New donation posted: {donation.food_type or 'Food'} ×{donation.quantity} by {donation.restaurant.username}."
+			for ngo in User.objects.filter(role='ngo'):
+				Notification.objects.create(user=ngo, message=msg)
+		except Exception:
+			pass
 
 	def get_permissions(self):
 		if self.action in ['create', 'update', 'partial_update', 'destroy']:
@@ -61,14 +68,16 @@ class RequestViewSet(viewsets.ModelViewSet):
 
 	def perform_create(self, serializer):
 		req = serializer.save(ngo=self.request.user)
-		# Create notifications to delivery agents and restaurant
+		# Create notifications to delivery agents and restaurant and NGO
 		try:
 			don = req.donation
 			msg = f"Pickup requested for donation #{don.id} ({don.food_type}) at {don.pickup_address or 'pickup location'}."
 			for agent in User.objects.filter(role='delivery_agent'):
 				Notification.objects.create(user=agent, message=msg)
 			# notify restaurant owner
-			Notification.objects.create(user=don.restaurant, message=f"Your donation #{don.id} has been requested by an NGO.")
+			Notification.objects.create(user=don.restaurant, message=f"Your donation #{don.id} has been requested by an NGO. Delivery agents have been notified for pickup.")
+			# notify requesting NGO that agents were notified
+			Notification.objects.create(user=req.ngo, message=f"Your request for donation #{don.id} has been sent. Delivery agents have been notified for pickup.")
 		except Exception:
 			pass
 
