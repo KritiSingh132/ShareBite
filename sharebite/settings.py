@@ -10,6 +10,9 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
+import os
+import dj_database_url
+
 from pathlib import Path
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -83,27 +86,34 @@ ASGI_APPLICATION = 'sharebite.asgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
-import os
 
 # Use SQLite locally unless DB_ENGINE=postgres is set and available
-if os.environ.get('DB_ENGINE', 'sqlite') == 'postgres':
-	DATABASES = {
+# if os.environ.get('DB_ENGINE', 'sqlite') == 'postgres':
+# 	DATABASES = {
+#     'default': {
+#         'ENGINE': 'django.db.backends.postgresql',
+#         'NAME': 'sharebite',
+#         'USER': 'sharebite_user',  # or 'postgres' if you prefer
+#         'PASSWORD': 'Kriti143',  # your chosen password
+#         'HOST': 'localhost',
+#         'PORT': '5432',  # Default PostgreSQL port
+#     }
+# }
+# else:
+# 	DATABASES = {
+# 		'default': {
+# 			'ENGINE': 'django.db.backends.sqlite3',
+# 			'NAME': BASE_DIR / 'db.sqlite3',
+# 		}
+# 	}
+DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'sharebite',
-        'USER': 'sharebite_user',  # or 'postgres' if you prefer
-        'PASSWORD': 'Kriti143',  # your chosen password
-        'HOST': 'localhost',
-        'PORT': '5432',  # Default PostgreSQL port
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': BASE_DIR / 'db.sqlite3',
     }
 }
-else:
-	DATABASES = {
-		'default': {
-			'ENGINE': 'django.db.backends.sqlite3',
-			'NAME': BASE_DIR / 'db.sqlite3',
-		}
-	}
+
+DATABASES['default'] = dj_database_url.parse("postgresql://food_4upk_user:gXbScfW23IDZaPmTrAlYCj7zs67FTgTK@dpg-d4bctlvdiees73ag8g80-a.oregon-postgres.render.com/food_4upk")
 
 
 # Password validation
