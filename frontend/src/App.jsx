@@ -84,9 +84,13 @@ function Login() {
 }
 
 function Register() {
-	const [searchParams] = useSearchParams()
+	const [searchParams, setSearchParams] = useSearchParams()
 	const roleHint = searchParams.get('role') || ''
 	const navigate = useNavigate()
+
+	const selectRole = (role) => {
+		setSearchParams({ role })
+	}
 
 	async function onSubmitNGO(e) {
 		e.preventDefault()
@@ -103,59 +107,247 @@ function Register() {
 		}
 		try {
 			await api.post('/api/accounts/register/ngo/', payload)
-			alert('Registration submitted. Please login once approved.')
+			alert('Registration successful! Please login.')
 			navigate('/login?role=ngo')
 		} catch (err) {
-			// Backend endpoint may not exist yet; simulate success for now
-			alert('Registration submitted (demo). Admin approval required. Please login after approval.')
-			navigate('/login?role=ngo')
+			const errorMsg = err?.response?.data?.detail || 'Registration failed. Please try again.'
+			alert(errorMsg)
 		}
 	}
 
+	async function onSubmitRestaurant(e) {
+		e.preventDefault()
+		const form = new FormData(e.currentTarget)
+		const payload = {
+			username: String(form.get('username') || ''),
+			email: String(form.get('email') || ''),
+			password: String(form.get('password') || ''),
+			organization_name: String(form.get('organization_name') || ''),
+			phone: String(form.get('phone') || ''),
+			address: String(form.get('address') || ''),
+			latitude: form.get('latitude') ? Number(form.get('latitude')) : null,
+			longitude: form.get('longitude') ? Number(form.get('longitude')) : null,
+		}
+		try {
+			await api.post('/api/accounts/register/restaurant/', payload)
+			alert('Registration successful! Please login.')
+			navigate('/login?role=restaurant')
+		} catch (err) {
+			const errorMsg = err?.response?.data?.detail || 'Registration failed. Please try again.'
+			alert(errorMsg)
+		}
+	}
+
+	async function onSubmitDeliveryAgent(e) {
+		e.preventDefault()
+		const form = new FormData(e.currentTarget)
+		const payload = {
+			username: String(form.get('username') || ''),
+			email: String(form.get('email') || ''),
+			password: String(form.get('password') || ''),
+			phone: String(form.get('phone') || ''),
+		}
+		try {
+			await api.post('/api/accounts/register/delivery_agent/', payload)
+			alert('Registration successful! Please login.')
+			navigate('/login?role=delivery_agent')
+		} catch (err) {
+			const errorMsg = err?.response?.data?.detail || 'Registration failed. Please try again.'
+			alert(errorMsg)
+		}
+	}
+
+	// Show role selection if no role is selected
+	if (!roleHint) {
+		return (
+			<div className="container py-5">
+				<div className="row justify-content-center">
+					<div className="col-md-8">
+						<h3 className="mb-4 text-center">Register</h3>
+						<p className="text-center text-body-secondary mb-4">Choose your account type to get started</p>
+						<div className="row g-3">
+							<div className="col-md-4">
+								<div className="card h-100 shadow-sm" style={{cursor: 'pointer'}} onClick={() => selectRole('restaurant')}>
+									<div className="card-body text-center">
+										<div className="fs-1 mb-3">🍽️</div>
+										<h5 className="card-title">Restaurant</h5>
+										<p className="card-text small text-body-secondary">Post food donations and help reduce waste</p>
+										<button className="btn btn-primary mt-2">Register as Restaurant</button>
+									</div>
+								</div>
+							</div>
+							<div className="col-md-4">
+								<div className="card h-100 shadow-sm" style={{cursor: 'pointer'}} onClick={() => selectRole('ngo')}>
+									<div className="card-body text-center">
+										<div className="fs-1 mb-3">❤️</div>
+										<h5 className="card-title">NGO</h5>
+										<p className="card-text small text-body-secondary">Request food donations for your community</p>
+										<button className="btn btn-success mt-2">Register as NGO</button>
+									</div>
+								</div>
+							</div>
+							<div className="col-md-4">
+								<div className="card h-100 shadow-sm" style={{cursor: 'pointer'}} onClick={() => selectRole('delivery_agent')}>
+									<div className="card-body text-center">
+										<div className="fs-1 mb-3">🚚</div>
+										<h5 className="card-title">Delivery Agent</h5>
+										<p className="card-text small text-body-secondary">Help deliver food donations to those in need</p>
+										<button className="btn btn-warning mt-2">Register as Agent</button>
+									</div>
+								</div>
+							</div>
+						</div>
+						<div className="text-center mt-4">
+							<Link to="/login">Already have an account? Login</Link>
+						</div>
+					</div>
+				</div>
+			</div>
+		)
+	}
+
+	// NGO Registration Form
 	if (roleHint === 'ngo') {
 		return (
 			<div className="container py-5">
-				<h3 className="mb-3">Register NGO</h3>
-				<form className="col-md-8" onSubmit={onSubmitNGO}>
-					<div className="row g-3">
-						<div className="col-md-6">
-							<label className="form-label">Organization Name</label>
-							<input className="form-control" name="organization_name" required />
-						</div>
-						<div className="col-md-6">
-							<label className="form-label">Phone</label>
-							<input className="form-control" name="phone" />
-						</div>
-						<div className="col-12">
-							<label className="form-label">Address</label>
-							<input className="form-control" name="address" />
-						</div>
-						<div className="col-md-6">
-							<label className="form-label">Latitude</label>
-							<input type="number" step="0.000001" className="form-control" name="latitude" />
-						</div>
-						<div className="col-md-6">
-							<label className="form-label">Longitude</label>
-							<input type="number" step="0.000001" className="form-control" name="longitude" />
-						</div>
-						<div className="col-md-4">
-							<label className="form-label">Username</label>
-							<input className="form-control" name="username" required />
-						</div>
-						<div className="col-md-4">
-							<label className="form-label">Email</label>
-							<input type="email" className="form-control" name="email" />
-						</div>
-						<div className="col-md-4">
-							<label className="form-label">Password</label>
-							<input type="password" className="form-control" name="password" required />
-						</div>
+				<div className="row justify-content-center">
+					<div className="col-md-8">
+						<h3 className="mb-3">Register NGO</h3>
+						<form onSubmit={onSubmitNGO}>
+							<div className="row g-3">
+								<div className="col-md-6">
+									<label className="form-label">Organization Name <span className="text-danger">*</span></label>
+									<input className="form-control" name="organization_name" required />
+								</div>
+								<div className="col-md-6">
+									<label className="form-label">Phone</label>
+									<input className="form-control" name="phone" />
+								</div>
+								<div className="col-12">
+									<label className="form-label">Address</label>
+									<input className="form-control" name="address" />
+								</div>
+								<div className="col-md-6">
+									<label className="form-label">Latitude</label>
+									<input type="number" step="0.000001" className="form-control" name="latitude" placeholder="Optional" />
+								</div>
+								<div className="col-md-6">
+									<label className="form-label">Longitude</label>
+									<input type="number" step="0.000001" className="form-control" name="longitude" placeholder="Optional" />
+								</div>
+								<div className="col-md-4">
+									<label className="form-label">Username <span className="text-danger">*</span></label>
+									<input className="form-control" name="username" required />
+								</div>
+								<div className="col-md-4">
+									<label className="form-label">Email</label>
+									<input type="email" className="form-control" name="email" />
+								</div>
+								<div className="col-md-4">
+									<label className="form-label">Password <span className="text-danger">*</span></label>
+									<input type="password" className="form-control" name="password" required />
+								</div>
+							</div>
+							<div className="mt-3">
+								<button className="btn btn-success" type="submit">Register</button>
+								<Link to="/register" className="btn btn-link ms-2">Back</Link>
+								<Link to="/login" className="btn btn-link ms-2">Already have an account?</Link>
+							</div>
+						</form>
 					</div>
-					<div className="mt-3">
-						<button className="btn btn-primary" type="submit">Submit</button>
-						<Link to="/" className="btn btn-link ms-2">Cancel</Link>
+				</div>
+			</div>
+		)
+	}
+
+	// Restaurant Registration Form
+	if (roleHint === 'restaurant') {
+		return (
+			<div className="container py-5">
+				<div className="row justify-content-center">
+					<div className="col-md-8">
+						<h3 className="mb-3">Register Restaurant</h3>
+						<form onSubmit={onSubmitRestaurant}>
+							<div className="row g-3">
+								<div className="col-md-6">
+									<label className="form-label">Restaurant Name <span className="text-danger">*</span></label>
+									<input className="form-control" name="organization_name" required />
+								</div>
+								<div className="col-md-6">
+									<label className="form-label">Phone</label>
+									<input className="form-control" name="phone" />
+								</div>
+								<div className="col-12">
+									<label className="form-label">Address</label>
+									<input className="form-control" name="address" />
+								</div>
+								<div className="col-md-6">
+									<label className="form-label">Latitude</label>
+									<input type="number" step="0.000001" className="form-control" name="latitude" placeholder="Optional" />
+								</div>
+								<div className="col-md-6">
+									<label className="form-label">Longitude</label>
+									<input type="number" step="0.000001" className="form-control" name="longitude" placeholder="Optional" />
+								</div>
+								<div className="col-md-4">
+									<label className="form-label">Username <span className="text-danger">*</span></label>
+									<input className="form-control" name="username" required />
+								</div>
+								<div className="col-md-4">
+									<label className="form-label">Email</label>
+									<input type="email" className="form-control" name="email" />
+								</div>
+								<div className="col-md-4">
+									<label className="form-label">Password <span className="text-danger">*</span></label>
+									<input type="password" className="form-control" name="password" required />
+								</div>
+							</div>
+							<div className="mt-3">
+								<button className="btn btn-primary" type="submit">Register</button>
+								<Link to="/register" className="btn btn-link ms-2">Back</Link>
+								<Link to="/login" className="btn btn-link ms-2">Already have an account?</Link>
+							</div>
+						</form>
 					</div>
-				</form>
+				</div>
+			</div>
+		)
+	}
+
+	// Delivery Agent Registration Form
+	if (roleHint === 'delivery_agent') {
+		return (
+			<div className="container py-5">
+				<div className="row justify-content-center">
+					<div className="col-md-8">
+						<h3 className="mb-3">Register Delivery Agent</h3>
+						<form onSubmit={onSubmitDeliveryAgent}>
+							<div className="row g-3">
+								<div className="col-md-6">
+									<label className="form-label">Username <span className="text-danger">*</span></label>
+									<input className="form-control" name="username" required />
+								</div>
+								<div className="col-md-6">
+									<label className="form-label">Email</label>
+									<input type="email" className="form-control" name="email" />
+								</div>
+								<div className="col-md-6">
+									<label className="form-label">Password <span className="text-danger">*</span></label>
+									<input type="password" className="form-control" name="password" required />
+								</div>
+								<div className="col-md-6">
+									<label className="form-label">Phone</label>
+									<input className="form-control" name="phone" />
+								</div>
+							</div>
+							<div className="mt-3">
+								<button className="btn btn-warning" type="submit">Register</button>
+								<Link to="/register" className="btn btn-link ms-2">Back</Link>
+								<Link to="/login" className="btn btn-link ms-2">Already have an account?</Link>
+							</div>
+						</form>
+					</div>
+				</div>
 			</div>
 		)
 	}
@@ -163,7 +355,7 @@ function Register() {
 	return (
 		<div className="container py-5">
 			<h3>Register</h3>
-			<p>Coming soon…</p>
+			<p>Invalid role selected. <Link to="/register">Select a role</Link></p>
 		</div>
 	)
 }

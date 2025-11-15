@@ -23,12 +23,13 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-mw6@vvl_1$74=^k@6qn!u5p16=9y@fd!4-jwrl#xg^m+lj)09@'
+SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-mw6@vvl_1$74=^k@6qn!u5p16=9y@fd!4-jwrl#xg^m+lj)09@')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = os.environ.get('DEBUG', 'False') == 'True'
 
-ALLOWED_HOSTS = ["*"]
+# Get allowed hosts from environment variable, fallback to * for development
+ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', '*').split(',') if os.environ.get('ALLOWED_HOSTS') else ['*']
 
 
 # Application definition
@@ -106,14 +107,21 @@ ASGI_APPLICATION = 'sharebite.asgi.application'
 # 			'NAME': BASE_DIR / 'db.sqlite3',
 # 		}
 # 	}
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
-    }
-}
+# Database configuration
+# Use DATABASE_URL environment variable if available (for Render/Heroku), otherwise use SQLite for local dev
+DATABASE_URL = os.environ.get('DATABASE_URL', 'postgresql://food_4upk_user:gXbScfW23IDZaPmTrAlYCj7zs67FTgTK@dpg-d4bctlvdiees73ag8g80-a.oregon-postgres.render.com/food_4upk')
 
-DATABASES['default'] = dj_database_url.parse("postgresql://food_4upk_user:gXbScfW23IDZaPmTrAlYCj7zs67FTgTK@dpg-d4bctlvdiees73ag8g80-a.oregon-postgres.render.com/food_4upk")
+if DATABASE_URL:
+    DATABASES = {
+        'default': dj_database_url.parse(DATABASE_URL)
+    }
+else:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db.sqlite3',
+        }
+    }
 
 
 # Password validation
@@ -169,7 +177,15 @@ SPECTACULAR_SETTINGS = {
 	'VERSION': '1.0.0',
 }
 
-CORS_ALLOW_ALL_ORIGINS = True
+# CORS Configuration
+# In production, set CORS_ALLOWED_ORIGINS environment variable with comma-separated frontend URLs
+# Example: CORS_ALLOWED_ORIGINS=https://sharebite-frontend.onrender.com,https://sharebite.vercel.app
+CORS_ALLOWED_ORIGINS_ENV = os.environ.get('CORS_ALLOWED_ORIGINS', '')
+if CORS_ALLOWED_ORIGINS_ENV:
+    CORS_ALLOWED_ORIGINS = [origin.strip() for origin in CORS_ALLOWED_ORIGINS_ENV.split(',')]
+else:
+    # Allow all origins in development, but restrict in production
+    CORS_ALLOW_ALL_ORIGINS = True
 
 AUTH_USER_MODEL = 'accounts.User'
 
