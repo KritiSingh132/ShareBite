@@ -295,6 +295,64 @@ You can customize the superuser creation by setting:
 5. Open a Pull Request
 
 
+## 🚀 Deployment to Render
+
+### Frontend Deployment
+
+To deploy the frontend on Render:
+
+1. **Push your code to a Git repository** (GitHub, GitLab, or Bitbucket)
+
+2. **Connect to Render**:
+   - Go to [Render Dashboard](https://dashboard.render.com/)
+   - Click "New +" → "Static Site"
+   - Connect your repository
+
+3. **Configure the Static Site**:
+   - **Name**: `sharebite-frontend` (or your preferred name)
+   - **Branch**: `main` (or your default branch)
+   - **Root Directory**: Leave empty (root of repository)
+   - **Build Command**: `cd frontend && npm install && npm run build`
+   - **Publish Directory**: `frontend/dist`
+   - **Environment Variable**: 
+     - Key: `VITE_API_BASE`
+     - Value: `https://your-backend-url.onrender.com` (replace with your actual backend URL)
+
+4. **Deploy**: Click "Create Static Site"
+
+   **OR** if using `render.yaml`:
+   - Render will automatically detect the `render.yaml` file
+   - Update the `VITE_API_BASE` value in `render.yaml` with your backend URL
+   - Render will use the configuration from the file
+
+5. **After deployment**: Your frontend will be available at `https://your-frontend-name.onrender.com`
+
+### Backend Deployment (Optional)
+
+If you also want to deploy the backend on Render:
+
+1. Create a new **Web Service** on Render
+2. Connect your repository
+3. Configure:
+   - **Build Command**: `pip install -r requirements.txt`
+   - **Start Command**: `gunicorn sharebite.wsgi:application`
+   - **Environment Variables**:
+     - `DJANGO_SETTINGS_MODULE=sharebite.settings`
+     - `SECRET_KEY` (generate a new secret key for production)
+     - `DEBUG=False`
+     - `ALLOWED_HOSTS=your-backend-url.onrender.com`
+     - `DB_ENGINE=postgres` (if using PostgreSQL)
+     - Database connection string (Render provides PostgreSQL automatically)
+4. Update your frontend's `VITE_API_BASE` to point to the deployed backend
+
+### Important Notes for Deployment
+
+- **Environment Variables**: Make sure to set `VITE_API_BASE` in Render's environment variables section (not just in the code)
+- **CORS**: Update `CORS_ALLOWED_ORIGINS` in `settings.py` to include your frontend URL
+- **Database**: Use PostgreSQL in production (Render provides free PostgreSQL databases)
+- **Static Files**: Configure Django to serve static files properly (use WhiteNoise or similar)
+- **Secret Key**: Never commit the production `SECRET_KEY` to version control
+
 ## 👤 Author
 
 Kriti Singh

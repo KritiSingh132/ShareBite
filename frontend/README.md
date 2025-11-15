@@ -1,12 +1,45 @@
-# React + Vite
+# ShareBite Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+React frontend for ShareBite food waste management platform.
 
-Currently, two official plugins are available:
+## Development
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+```bash
+npm install
+npm run dev
+```
 
-## Expanding the ESLint configuration
+## Environment Variables
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+Create a `.env` file in the `frontend` directory:
+
+```
+VITE_API_BASE=http://127.0.0.1:8000
+```
+
+For production, set `VITE_API_BASE` to your deployed backend URL.
+
+## Building for Production
+
+```bash
+npm run build
+```
+
+The built files will be in the `dist` directory.
+
+## Deploying to Render
+
+1. Connect your repository to Render
+2. Create a new Static Site
+3. Set the following:
+   - **Build Command**: `cd frontend && npm install && npm run build`
+   - **Publish Directory**: `frontend/dist`
+   - **Environment Variable**: 
+     - Key: `VITE_API_BASE`
+     - Value: `https://your-backend-url.onrender.com`
+
+4. Deploy!
+
+Alternatively, if you're using the `render.yaml` file in the root:
+- Render will automatically detect and use it
+- Make sure to update the `VITE_API_BASE` value in `render.yaml` with your actual backend URL

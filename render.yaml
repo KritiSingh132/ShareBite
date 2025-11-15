@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: sharebite-frontend
+    env: static
+    buildCommand: cd frontend && npm install && npm run build
+    staticPublishPath: ./frontend/dist
+    envVars:
+      - key: VITE_API_BASE
+        sync: false
+        value: https://your-backend-url.onrender.com
+        required: true
+
